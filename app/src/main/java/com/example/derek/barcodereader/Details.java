@@ -17,6 +17,7 @@ import android.text.Html;
 import android.text.method.LinkMovementMethod;
 import android.util.Log;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TableLayout;
 import android.widget.TableRow;
@@ -27,16 +28,19 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
-public class Details extends AppCompatActivity{
-    private TextView productDisplay, codeDisplay, detailsDisplay, offerDisplay;
+public class Details extends AppCompatActivity implements View.OnClickListener {
+    private TextView productDisplay, detailsDisplay, priceDisplay;
     private TableLayout comparisonTable;
     private ImageView productImage;
+    private Button addButton, removeButton;
+    private String code, name;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -49,19 +53,23 @@ public class Details extends AppCompatActivity{
 
         Intent intent = getIntent();
         String message = intent.getStringExtra(MainActivity.EXTRA_MESSAGE);
+        String[] messageSplit = message.split(";");
+        code = messageSplit[0];
+        name = messageSplit[1];
 
         // Capture the layout's TextView and set the string as its text
         productDisplay = (TextView) findViewById(R.id.product_display);
-        codeDisplay = (TextView) findViewById(R.id.code_display);
         detailsDisplay = (TextView) findViewById(R.id.description_display);
-        //details.setText(message);
-        //String[] lines = message.split("\n", 2);
-        comparisonTable = (TableLayout)findViewById(R.id.compareTable);
-        offerDisplay = (TextView) findViewById(R.id.offer_display);
+        priceDisplay = (TextView) findViewById(R.id.price_display);
         productImage = (ImageView) findViewById(R.id.product_image);
+        addButton = (Button)findViewById(R.id.add_button);
+        removeButton = (Button)findViewById(R.id.remove_button);
+        addButton.setOnClickListener(this);
+        removeButton.setOnClickListener(this);
 
 
-        new RequestStores().execute(message, "", "");
+        new GetDetails().execute(code, "", "");
+        new GetPrice().execute(code, "", "");
 
 //        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
 //        fab.setOnClickListener(new View.OnClickListener() {
@@ -71,20 +79,331 @@ public class Details extends AppCompatActivity{
 //                        .setAction("Action", null).show();
 //            }
 //        });
-        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        getSupportActionBar().setDisplayHomeAsUpEnabled(false);
     }
 
-    private TableRow makeRow(){
-        TableRow newRow = new TableRow(this);
-        comparisonTable.addView(newRow);
-        return newRow;
-    }
-    private TextView addTextView(String s){
-        TextView newText = new TextView(this);
-        newText.setText(s);
-        return newText;
+    @Override
+    public void onClick(View view) {
+
+        if (view.getId() == R.id.add_button){
+            new UpdateUser().execute(code, "add", "");
+        }
+        if (view.getId() == R.id.remove_button){
+            new UpdateUser().execute(code, "remove", "");
+        }
     }
 
+    public void toMainScreen(String input) throws IOException {
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.putExtra("test", input);
+
+        startActivity(intent);
+    }
+
+
+    class GetDetails extends AsyncTask<String, String, String> {
+        protected String doInBackground(String... inputs) {
+            String output = "";
+            String barcode = inputs[0];
+            String url = "https://storeproject-209402.appspot.com/products/" + barcode;
+            //String url = "https://www.googleapis.com/customsearch/v1?key=AIzaSyAr-AK5Maj7MlJEoQkt_XiNF891qW2bS0Y&cx=005773736382830971489:6njleywqa3i&q=equate_moisturizing_lotion";
+
+            try {
+                URL obj = new URL(url);
+                HttpURLConnection con = (HttpURLConnection)obj.openConnection();
+                con.setRequestMethod("GET");
+                //con.setDoInput(true);
+//                con.setDoOutput(true);
+//                con.setConnectTimeout(5000);
+//                con.setReadTimeout(5000);
+                con.connect();
+                InputStream in = con.getInputStream();
+                InputStreamReader isw = new InputStreamReader(in);
+                int data = isw.read();
+                while (data != -1) {
+                    char current = (char) data;
+                    data = isw.read();
+                    output += current;
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+
+            return output;
+
+        }
+
+        protected void onPostExecute(String output) {
+            if (output.equals("404 not found")){
+                Toast toast = Toast.makeText(getApplicationContext(),
+                        "Invalid", Toast.LENGTH_SHORT);
+                toast.show();
+                try {//modify
+                    toMainScreen(name);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                return;
+            }
+
+            try {//modify
+                JSONObject result = new JSONObject(output);
+                productDisplay.setText(result.getString("name"));
+                detailsDisplay.setText(result.getString("description"));
+                new DownloadImageTask(productImage).execute(result.getString("image"));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+        }
+    }
+
+    class GetPrice extends AsyncTask<String, String, String> {
+        protected String doInBackground(String... inputs) {
+            String output = "";
+            String barcode = inputs[0];
+            String url = "https://storeproject-209402.appspot.com/prices/" + barcode;
+            //String url = "https://www.googleapis.com/customsearch/v1?key=AIzaSyAr-AK5Maj7MlJEoQkt_XiNF891qW2bS0Y&cx=005773736382830971489:6njleywqa3i&q=equate_moisturizing_lotion";
+
+            try {
+                URL obj = new URL(url);
+                HttpURLConnection con = (HttpURLConnection)obj.openConnection();
+                con.setRequestMethod("GET");
+                //con.setDoInput(true);
+//                con.setDoOutput(true);
+//                con.setConnectTimeout(5000);
+//                con.setReadTimeout(5000);
+                con.connect();
+                InputStream in = con.getInputStream();
+                InputStreamReader isw = new InputStreamReader(in);
+                int data = isw.read();
+                while (data != -1) {
+                    char current = (char) data;
+                    data = isw.read();
+                    output += current;
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+
+            return output;
+
+        }
+
+        protected void onPostExecute(String output) {
+            if (output.equals("404 not found")){
+                Toast toast = Toast.makeText(getApplicationContext(),
+                        "Invalid", Toast.LENGTH_SHORT);
+                toast.show();
+                try {//modify
+                    toMainScreen(name);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                return;
+            }
+
+            try {//modify
+                JSONObject result = new JSONObject(output);
+                priceDisplay.setText("$" + result.getString("price"));
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+        }
+    }
+
+
+    class UpdateUser extends AsyncTask<String, String, String> {
+        protected String doInBackground(String... inputs) {
+            String output = "";
+            String barcode = inputs[0];
+            String action = inputs[1];
+
+            String url = "https://storeproject-209402.appspot.com/stocks/" + barcode;
+            try {
+                URL obj = new URL(url);
+                HttpURLConnection con = (HttpURLConnection)obj.openConnection();
+                con.setRequestMethod("GET");
+                //con.setDoInput(true);
+//                con.setDoOutput(true);
+//                con.setConnectTimeout(5000);
+//                con.setReadTimeout(5000);
+                con.connect();
+                InputStream in = con.getInputStream();
+                InputStreamReader isw = new InputStreamReader(in);
+                int data = isw.read();
+                while (data != -1) {
+                    char current = (char) data;
+                    data = isw.read();
+                    output += current;
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            try {
+                JSONObject result = new JSONObject(output);
+                int stock = result.getInt("stock");
+                if (stock == 0 && action.equals("add")){
+                    return "Out of stock";
+                }
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+            output = "";
+            url = "https://storeproject-209402.appspot.com/users/" + name;
+            try {
+                URL obj = new URL(url);
+                HttpURLConnection con = (HttpURLConnection)obj.openConnection();
+                con.setRequestMethod("GET");
+                //con.setDoInput(true);
+//                con.setDoOutput(true);
+//                con.setConnectTimeout(5000);
+//                con.setReadTimeout(5000);
+                con.connect();
+                InputStream in = con.getInputStream();
+                InputStreamReader isw = new InputStreamReader(in);
+                int data = isw.read();
+                while (data != -1) {
+                    char current = (char) data;
+                    data = isw.read();
+                    output += current;
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            try {
+                JSONObject result = new JSONObject(output);
+                String balance = result.getString("balance");
+                url += "?balance=" + balance;
+                if (!result.isNull("cart")) {
+                    JSONArray cart = result.getJSONArray("cart");
+                    for (int i = 0; i < cart.length(); i++) {
+                        String targetCode = cart.getString(i);
+                        if (action.equals("remove") && targetCode.equals(barcode)) {
+                            action = "removed";
+                        } else {
+                            url += "&cart=" + targetCode;
+                        }
+                    }
+                }
+                if (action.equals("add")){
+                    url += "&cart=" + barcode;
+                }
+                output = "";
+                URL obj = new URL(url);
+                HttpURLConnection con = (HttpURLConnection)obj.openConnection();
+                con.setRequestMethod("PUT");
+                con.setDoInput(true);
+                con.setDoOutput(true);
+//                con.setConnectTimeout(5000);
+//                con.setReadTimeout(5000);
+                con.connect();
+                InputStream in = con.getInputStream();
+                InputStreamReader isw = new InputStreamReader(in);
+                int data = isw.read();
+                while (data != -1) {
+                    char current = (char) data;
+                    data = isw.read();
+                    output += current;
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            output = "";
+            url = "https://storeproject-209402.appspot.com/stocks/" + barcode;
+            try {
+                URL obj = new URL(url);
+                HttpURLConnection con = (HttpURLConnection)obj.openConnection();
+                con.setRequestMethod("GET");
+                //con.setDoInput(true);
+//                con.setDoOutput(true);
+//                con.setConnectTimeout(5000);
+//                con.setReadTimeout(5000);
+                con.connect();
+                InputStream in = con.getInputStream();
+                InputStreamReader isw = new InputStreamReader(in);
+                int data = isw.read();
+                while (data != -1) {
+                    char current = (char) data;
+                    data = isw.read();
+                    output += current;
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            try {
+                JSONObject result = new JSONObject(output);
+                int stock = result.getInt("stock");
+                if (action.equals("add")){
+                    if (stock == 0) {
+                        return "Out of stock";
+                    }
+                    else{
+                        stock--;
+                    }
+                }
+                else if (action.equals("removed")){
+                    stock++;
+                }
+                url += "?stock=" + Integer.toString(stock);
+                URL obj = new URL(url);
+                HttpURLConnection con = (HttpURLConnection)obj.openConnection();
+                con.setRequestMethod("PUT");
+                con.setDoInput(true);
+                con.setDoOutput(true);
+//                con.setConnectTimeout(5000);
+//                con.setReadTimeout(5000);
+                con.connect();
+                InputStream in = con.getInputStream();
+                InputStreamReader isw = new InputStreamReader(in);
+                int data = isw.read();
+                while (data != -1) {
+                    char current = (char) data;
+                    data = isw.read();
+                    output += current;
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            if (action.equals("add")){
+                return "Item added";
+            }
+            else if (action.equals("removed")){
+                return "Item removed";
+            }
+            else if (action.equals("remove")){
+                return "Item not in cart";
+            }
+            return output;
+
+        }
+
+        protected void onPostExecute(String output) {
+            if (output.equals("404 not found")){
+                Toast toast = Toast.makeText(getApplicationContext(),
+                        "Invalid", Toast.LENGTH_SHORT);
+                toast.show();
+                return;
+            }
+            Toast toast = Toast.makeText(getApplicationContext(),
+                    output, Toast.LENGTH_SHORT);
+            toast.show();
+
+
+            try {//modify
+                toMainScreen(name);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+        }
+    }
+
+/*
     class RequestStores extends AsyncTask<String, String, String> {
         boolean err = false;
         protected String doInBackground(String... inputs) {
@@ -225,7 +544,8 @@ public class Details extends AppCompatActivity{
 
 
         }
-    }
+    }*/
+
     private class DownloadImageTask extends AsyncTask<String, Void, Bitmap> {
         ImageView bmImage;
         public DownloadImageTask(ImageView bmImage) {

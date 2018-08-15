@@ -4,7 +4,7 @@ android {
     compileSdkVersion 28
     buildToolsVersion "28.0.1"
     defaultConfig {
-        applicationId "com.example.derek.barcodereader"
+        applicationId "com.example.derek.shoppingapp"
         minSdkVersion 22
         targetSdkVersion 28
         versionCode 1
